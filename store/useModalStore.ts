@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Compra } from '../.next/types' // Importe o tipo
+import { Compra } from '../types'
 
 interface ModalStore {
   isOpen: boolean
