@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import axios from "axios"
-import { Compra } from "../.next/types" 
+import { Compra } from "../types" 
 import { PlusCircle, Trash2, CreditCard, User, Calendar, Edit, Settings, AlertCircle } from "lucide-react"
 import { useModalStore } from "../store/useModalStore"
 import CreateCompraForm from "../components/CreateCompraForm"
@@ -10,10 +10,12 @@ import Dashboard from "../components/Dashboard"
 import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { useUser } from "@clerk/nextjs" // <--- 1. Importar Clerk
 
 export default function Home() {
   const { abrirModal, abrirParaEditar } = useModalStore() 
   const queryClient = useQueryClient()
+  const { user, isLoaded } = useUser() // <--- 2. Pegar usuário logado
 
   const hoje = new Date()
   const [mesFiltro, setMesFiltro] = useState(hoje.getMonth() + 1)
@@ -21,16 +23,25 @@ export default function Home() {
 
   // Busca de dados
   const { data: compras, isLoading, error } = useQuery<Compra[]>({
-    queryKey: ['compras', mesFiltro, anoFiltro],
+    queryKey: ['compras', mesFiltro, anoFiltro, user?.id], // <--- Adiciona ID na chave do cache
     queryFn: async () => {
-      const response = await axios.get(`http://localhost:8080/compras?mes=${mesFiltro}&ano=${anoFiltro}`)
+      if (!user?.id) return []
+      // 3. Enviar o ID no Header
+      const response = await axios.get(`process.env.NEXT_PUBLIC_API_URL/compras?mes=${mesFiltro}&ano=${anoFiltro}`, {
+        headers: { "X-Usuario-Id": user.id }
+      })
       return response.data
-    }
+    },
+    enabled: !!user?.id // Só busca se tiver usuário
   })
 
   // Mutação de Deletar
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => axios.delete(`http://localhost:8080/compras/${id}`),
+    mutationFn: async (id: number) => {
+        return axios.delete(`process.env.NEXT_PUBLIC_API_URL/compras/${id}`, {
+            headers: { "X-Usuario-Id": user?.id } // <--- Envia ID também ao deletar
+        })
+    },
     onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['compras'] })
         queryClient.invalidateQueries({ queryKey: ['resumoPessoas'] })
@@ -53,7 +64,7 @@ export default function Home() {
   }
 
   // Loading
-  if (isLoading) return (
+  if (!isLoaded || isLoading) return (
     <div className="flex h-screen items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center animate-pulse gap-4">
             <div className="h-12 w-12 bg-blue-200 rounded-full"></div>
@@ -72,7 +83,7 @@ export default function Home() {
       {/* CONTAINER PRINCIPAL */}
       <div className="w-full max-w-2xl flex flex-col gap-8 mb-8">
         
-        {/* CABEÇALHO */}
+        {/* --- CABEÇALHO --- */}
         <div className="flex justify-between items-center bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
             
             {/* LOGO */}
@@ -87,14 +98,15 @@ export default function Home() {
                 />
             </div>
             
+            {/* BOTÕES (Nova + Config) */}
             <div className="flex items-center gap-3">
                 <button 
                     onClick={abrirModal} 
-                    className="bg-blue-600 text-white p-6 px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-blue-700 transition shadow-lg shadow-blue-200 active:scale-95 font-bold tracking-wide"
+                    className="bg-blue-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-blue-700 transition shadow-lg shadow-blue-200 active:scale-95 font-bold tracking-wide"
                 >
                     <PlusCircle size={20} /> 
-                    {/* Texto condicional limpo */}
                     <span className="hidden sm:inline">Nova Despesa</span>
+                    <span className="sm:hidden">Nova</span>
                 </button>
 
                 <Link 
@@ -107,7 +119,7 @@ export default function Home() {
             </div>
         </div>
 
-        {/*  BARRA DE DATA  */}
+        {/* --- BARRA DE DATA --- */}
         <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
             <button onClick={() => mudarMes(-1)} className="p-3 hover:bg-gray-50 rounded-xl text-gray-400 hover:text-blue-600 transition hover:scale-110">
                 ◀
@@ -125,13 +137,14 @@ export default function Home() {
             </button>
         </div>
       </div>
-      {/*  DASHBOARD  */}
+
+      {/* --- DASHBOARD --- */}
       <Dashboard mes={mesFiltro} ano={anoFiltro} />
 
-      {/*  LISTA DE COMPRAS  */}
+      {/* --- LISTA DE COMPRAS --- */}
       <div className="w-full max-w-2xl mt-8 space-y-4 pb-20">
         
-        {compras && compras.length > 0 && (
+        {compras?.length > 0 && (
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-2 mb-3">Histórico de Gastos</h3>
         )}
 
@@ -139,8 +152,6 @@ export default function Home() {
           <div key={compra.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition-all group relative">
             
             <div className="flex justify-between items-start">
-              
-              {/* LADO ESQUERDO */}
               <div className="space-y-2">
                 <h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">
                     {compra.descricao}
@@ -163,13 +174,11 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* LADO DIREITO */}
               <div className="flex flex-col items-end gap-1">
                 <div className="text-xl font-bold text-gray-800 tracking-tight">
                   {compra.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </div>
                 
-                {/* Botões de Ação*/}
                 <div className="flex gap-1 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     <button 
                         onClick={() => abrirParaEditar(compra)}
@@ -187,7 +196,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Divisão */}
             {compra.parceiroId && (
               <div className="mt-4 pt-3 border-t border-dashed border-gray-100 text-xs text-purple-600 font-medium flex items-center gap-2">
                 <span className="bg-purple-100 p-1 rounded-full">🤝</span> Dividido com parceiro
@@ -196,8 +204,7 @@ export default function Home() {
           </div>
         ))}
 
-        {/* Estado Vazio */}
-        {compras && compras.length === 0 && (
+        {compras?.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-gray-400 bg-white rounded-3xl border border-dashed border-gray-200 mx-auto">
                 <div className="bg-gray-50 p-4 rounded-full mb-3">
                     <AlertCircle size={32} className="opacity-40 text-gray-500"/>
