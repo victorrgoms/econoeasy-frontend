@@ -144,7 +144,7 @@ export default function Home() {
       {/* --- LISTA DE COMPRAS --- */}
       <div className="w-full max-w-2xl mt-8 space-y-4 pb-20">
         
-        {compras?.length > 0 && (
+        {(compras?.length ?? 0) > 0 && (
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-2 mb-3">Histórico de Gastos</h3>
         )}
 
