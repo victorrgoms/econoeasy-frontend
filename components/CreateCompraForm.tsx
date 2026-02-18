@@ -27,12 +27,12 @@ export default function CreateCompraForm() {
   // Queries com Header
   const { data: pessoas } = useQuery<Pessoa[]>({ 
       queryKey: ['pessoas', user?.id], 
-      queryFn: async () => (await axios.get('process.env.NEXT_PUBLIC_API_URL/pessoas', { headers: { "X-Usuario-Id": user?.id } })).data, 
+      queryFn: async () => (await axios.get('${process.env.NEXT_PUBLIC_API_URL}/pessoas', { headers: { "X-Usuario-Id": user?.id } })).data, 
       enabled: isOpen && !!user 
   })
   const { data: cartoes } = useQuery<Cartao[]>({ 
       queryKey: ['cartoes', user?.id], 
-      queryFn: async () => (await axios.get('process.env.NEXT_PUBLIC_API_URL/cartoes', { headers: { "X-Usuario-Id": user?.id } })).data, 
+      queryFn: async () => (await axios.get('${process.env.NEXT_PUBLIC_API_URL}/cartoes', { headers: { "X-Usuario-Id": user?.id } })).data, 
       enabled: isOpen && !!user 
   })
 
@@ -40,8 +40,8 @@ export default function CreateCompraForm() {
   const mutation = useMutation({
     mutationFn: async (dados: any) => {
       const config = { headers: { "X-Usuario-Id": user?.id } }
-      if (compraParaEditar) return axios.put(`process.env.NEXT_PUBLIC_API_URL/compras/${compraParaEditar.id}`, dados, config)
-      else return axios.post('process.env.NEXT_PUBLIC_API_URL/compras', dados, config)
+      if (compraParaEditar) return axios.put(`${process.env.NEXT_PUBLIC_API_URL}/compras/${compraParaEditar.id}`, dados, config)
+      else return axios.post('${process.env.NEXT_PUBLIC_API_URL}/compras', dados, config)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['compras'] }); queryClient.invalidateQueries({ queryKey: ['resumoPessoas'] }); queryClient.invalidateQueries({ queryKey: ['resumoCartoes'] })

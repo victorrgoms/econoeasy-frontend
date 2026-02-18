@@ -27,7 +27,7 @@ export default function Home() {
     queryFn: async () => {
       if (!user?.id) return []
       // 3. Enviar o ID no Header
-      const response = await axios.get(`process.env.NEXT_PUBLIC_API_URL/compras?mes=${mesFiltro}&ano=${anoFiltro}`, {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/compras?mes=${mesFiltro}&ano=${anoFiltro}`, {
         headers: { "X-Usuario-Id": user.id }
       })
       return response.data
@@ -38,7 +38,7 @@ export default function Home() {
   // Mutação de Deletar
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-        return axios.delete(`process.env.NEXT_PUBLIC_API_URL/compras/${id}`, {
+        return axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/compras/${id}`, {
             headers: { "X-Usuario-Id": user?.id } // <--- Envia ID também ao deletar
         })
     },

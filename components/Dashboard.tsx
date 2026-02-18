@@ -16,7 +16,7 @@ export default function Dashboard({ mes, ano }: DashboardProps) {
         queryKey: ['resumoPessoas', mes, ano, user?.id],
         queryFn: async () => {
             if(!user?.id) return []
-            return (await axios.get(`process.env.NEXT_PUBLIC_API_URL/compras/resumo?mes=${mes}&ano=${ano}`, {
+            return (await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/compras/resumo?mes=${mes}&ano=${ano}`, {
                 headers: { "X-Usuario-Id": user.id }
             })).data
         },
@@ -27,7 +27,7 @@ export default function Dashboard({ mes, ano }: DashboardProps) {
         queryKey: ['resumoCartoes', mes, ano, user?.id],
         queryFn: async () => {
             if(!user?.id) return []
-            return (await axios.get(`process.env.NEXT_PUBLIC_API_URL/cartoes/resumo?mes=${mes}&ano=${ano}`, {
+            return (await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/cartoes/resumo?mes=${mes}&ano=${ano}`, {
                 headers: { "X-Usuario-Id": user.id }
             })).data
         },
