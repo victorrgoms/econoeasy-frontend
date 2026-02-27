@@ -15,11 +15,13 @@ export default function CreateCompraForm() {
 
   const [descricao, setDescricao] = useState(''); 
   const [valor, setValor] = useState(''); 
+  const [tipoValor, setTipoValor] = useState<'TOTAL' | 'PARCELA'>('TOTAL');
   const [data, setData] = useState(''); 
   const [compradorId, setCompradorId] = useState(''); 
   const [cartaoId, setCartaoId] = useState(''); 
   const [parceiroId, setParceiroId] = useState(''); 
-  const [parcelas, setParcelas] = useState('1')
+  const [parcelas, setParcelas] = useState('1');
+  const [parcelaAtualInput, setParcelaAtualInput] = useState('1');
 
   useEffect(() => {
     if (compraParaEditar) {
@@ -29,7 +31,9 @@ export default function CreateCompraForm() {
       setCompradorId(compraParaEditar.comprador?.id.toString() || ''); 
       setCartaoId(compraParaEditar.cartao?.id.toString() || ''); 
       setParceiroId(compraParaEditar.parceiroId?.toString() || ''); 
-      setParcelas(compraParaEditar.totalParcelas?.toString() || '1')
+      setParcelas(compraParaEditar.totalParcelas?.toString() || '1');
+      setParcelaAtualInput(compraParaEditar.parcelaAtual?.toString() || '1');
+      setTipoValor('PARCELA'); // ao editar o valor que vem ja é o da parcela quebrada
     } else { 
       limparCampos() 
     }
@@ -38,19 +42,19 @@ export default function CreateCompraForm() {
   const limparCampos = () => { 
     setDescricao(''); 
     setValor(''); 
+    setTipoValor('TOTAL');
     
-    // Traz a data atual já no esquema que o input type date aceita (YYYY-MM-DD)
     const hoje = new Date().toISOString().split('T')[0];
     setData(hoje);
     
-    // Puxa do navegador os últimos usados
     if (typeof window !== 'undefined') {
         setCompradorId(localStorage.getItem('ultimoComprador') || '');
         setCartaoId(localStorage.getItem('ultimoCartao') || '');
     }
 
     setParceiroId(''); 
-    setParcelas('1') 
+    setParcelas('1');
+    setParcelaAtualInput('1');
   }
 
   const { data: pessoas } = useQuery<Pessoa[]>({ 
@@ -86,27 +90,32 @@ export default function CreateCompraForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Salva as escolhas pra próxima vez que for adicionar algo
     if (typeof window !== 'undefined') {
         localStorage.setItem('ultimoComprador', compradorId);
         localStorage.setItem('ultimoCartao', cartaoId);
     }
 
-    // Resolvendo o bugzinho do JS que muda o mês por causa do fuso horário
     const [anoStr, mesStr] = data.split('-');
     const mesFatura = parseInt(mesStr, 10);
     const anoFatura = parseInt(anoStr, 10);
 
+    const valorInput = parseFloat(valor.replace(',', '.'));
+    
+    // a api sempre recebe o total e faz a matematica de dividir.
+    // entao se o usuario marcou que ta digitando o valor da parcela solta, a gente multiplica antes de enviar
+    const valorParaEnviar = tipoValor === 'PARCELA' ? valorInput * Number(parcelas) : valorInput;
+
     const payload = { 
         descricao, 
-        valor: parseFloat(valor.replace(',', '.')), 
+        valor: valorParaEnviar, 
         data, 
         mesFatura, 
         anoFatura, 
         cartaoId: Number(cartaoId), 
         compradorId: Number(compradorId), 
         parceiroId: parceiroId ? Number(parceiroId) : null, 
-        totalParcelas: Number(parcelas) 
+        totalParcelas: Number(parcelas),
+        parcelaAtual: Number(parcelaAtualInput)
     }
     mutation.mutate(payload)
   }
@@ -125,16 +134,28 @@ export default function CreateCompraForm() {
                <label className="block text-sm font-medium text-gray-600">Descrição</label>
                <input required value={descricao} onChange={e => setDescricao(e.target.value)} className="w-full border p-2 rounded-xl mt-1 outline-none focus:border-blue-500" placeholder="Ex: Mercado..." />
            </div>
-           <div className="grid grid-cols-2 gap-4">
-               <div>
-                   <label className="block text-sm font-medium text-gray-600">Valor</label>
-                   <input required type="number" step="0.01" value={valor} onChange={e => setValor(e.target.value)} className="w-full border p-2 rounded-xl mt-1 outline-none focus:border-blue-500" />
+           
+           <div className="p-3 bg-gray-50 border rounded-xl">
+               <div className="flex gap-4 mb-2">
+                   <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                       <input type="radio" checked={tipoValor === 'TOTAL'} onChange={() => setTipoValor('TOTAL')} className="text-blue-600 focus:ring-blue-500" /> Valor Total
+                   </label>
+                   <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                       <input type="radio" checked={tipoValor === 'PARCELA'} onChange={() => setTipoValor('PARCELA')} className="text-blue-600 focus:ring-blue-500" /> Valor da Parcela
+                   </label>
                </div>
-               <div>
-                   <label className="block text-sm font-medium text-gray-600">Data</label>
-                   <input required type="date" value={data} onChange={e => setData(e.target.value)} className="w-full border p-2 rounded-xl mt-1" />
+               <div className="grid grid-cols-2 gap-4">
+                   <div>
+                       <label className="block text-sm font-medium text-gray-600">Valor</label>
+                       <input required type="number" step="0.01" value={valor} onChange={e => setValor(e.target.value)} className="w-full border p-2 rounded-xl mt-1 outline-none focus:border-blue-500 bg-white" />
+                   </div>
+                   <div>
+                       <label className="block text-sm font-medium text-gray-600">Data</label>
+                       <input required type="date" value={data} onChange={e => setData(e.target.value)} className="w-full border p-2 rounded-xl mt-1 bg-white" />
+                   </div>
                </div>
            </div>
+
            <div>
                <label className="block text-sm font-medium text-gray-600">Comprador</label>
                <select required value={compradorId} onChange={e => setCompradorId(e.target.value)} className="w-full border p-2 rounded-xl mt-1 bg-white">
@@ -149,21 +170,31 @@ export default function CreateCompraForm() {
                    {cartoes?.map(c => <option key={c.id} value={c.id}>{c.apelido}</option>)}
                </select>
            </div>
-           <div>
-               <label className="block text-sm font-medium text-gray-600">Parcelas</label>
-               <select value={parcelas} onChange={e => setParcelas(e.target.value)} className="w-full border p-2 rounded-xl mt-1 bg-white">
-                   <option value="1">À vista (1x)</option>
-                   {[2,3,4,5,6,7,8,9,10,12].map(n => <option key={n} value={n}>{n}x</option>)}
-               </select>
+           
+           <div className="grid grid-cols-2 gap-4">
+               <div>
+                   <label className="block text-sm font-medium text-gray-600">Total Parcelas</label>
+                   <select value={parcelas} onChange={e => { setParcelas(e.target.value); if(e.target.value === '1') setParcelaAtualInput('1'); }} className="w-full border p-2 rounded-xl mt-1 bg-white">
+                       <option value="1">À vista (1x)</option>
+                       {[2,3,4,5,6,7,8,9,10,12].map(n => <option key={n} value={n}>{n}x</option>)}
+                   </select>
+               </div>
+               {Number(parcelas) > 1 && !compraParaEditar && (
+                   <div>
+                       <label className="block text-sm font-medium text-gray-600">Parcela Atual</label>
+                       <input type="number" min="1" max={parcelas} value={parcelaAtualInput} onChange={e => setParcelaAtualInput(e.target.value)} className="w-full border p-2 rounded-xl mt-1 outline-none focus:border-blue-500" />
+                   </div>
+               )}
            </div>
-           <div className="p-4 bg-blue-50 rounded-xl">
+
+           <div className="p-4 bg-blue-50 rounded-xl mt-2">
                <label className="block text-sm font-medium text-blue-800 mb-1">Dividir com alguém?</label>
                <select value={parceiroId} onChange={e => setParceiroId(e.target.value)} className="w-full border p-2 rounded-xl bg-white text-sm">
                    <option value="">Não</option>
                    {pessoas?.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                </select>
            </div>
-           <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition">
+           <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition mt-2">
                {mutation.isPending ? 'Salvando...' : 'Salvar Despesa'}
            </button>
         </form>
