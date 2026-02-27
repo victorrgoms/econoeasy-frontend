@@ -10,36 +10,33 @@ import Dashboard from "../components/Dashboard"
 import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { useUser } from "@clerk/nextjs" // <--- 1. Importar Clerk
+import { useUser } from "@clerk/nextjs"
 
 export default function Home() {
   const { abrirModal, abrirParaEditar } = useModalStore() 
   const queryClient = useQueryClient()
-  const { user, isLoaded } = useUser() // <--- 2. Pegar usuário logado
+  const { user, isLoaded } = useUser()
 
   const hoje = new Date()
   const [mesFiltro, setMesFiltro] = useState(hoje.getMonth() + 1)
   const [anoFiltro, setAnoFiltro] = useState(hoje.getFullYear())
 
-  // Busca de dados
   const { data: compras, isLoading, error } = useQuery<Compra[]>({
-    queryKey: ['compras', mesFiltro, anoFiltro, user?.id], // <--- Adiciona ID na chave do cache
+    queryKey: ['compras', mesFiltro, anoFiltro, user?.id],
     queryFn: async () => {
       if (!user?.id) return []
-      // 3. Enviar o ID no Header
       const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/compras?mes=${mesFiltro}&ano=${anoFiltro}`, {
         headers: { "X-Usuario-Id": user.id }
       })
       return response.data
     },
-    enabled: !!user?.id // Só busca se tiver usuário
+    enabled: !!user?.id
   })
 
-  // Mutação de Deletar
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
         return axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/compras/${id}`, {
-            headers: { "X-Usuario-Id": user?.id } // <--- Envia ID também ao deletar
+            headers: { "X-Usuario-Id": user?.id }
         })
     },
     onSuccess: () => {
@@ -50,8 +47,30 @@ export default function Home() {
     onError: () => alert("Erro ao deletar.")
   })
 
+  // mutacao pra varrer tudo
+  const deleteAllMutation = useMutation({
+    mutationFn: async () => {
+        return axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/compras/todas`, {
+            headers: { "X-Usuario-Id": user?.id }
+        })
+    },
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['compras'] })
+        queryClient.invalidateQueries({ queryKey: ['resumoPessoas'] })
+        queryClient.invalidateQueries({ queryKey: ['resumoCartoes'] })
+    },
+    onError: () => alert("Erro ao deletar tudo.")
+  })
+
   const handleDelete = (id: number) => {
     if (confirm("Apagar despesa?")) deleteMutation.mutate(id)
+  }
+
+  // trigger do alerta de confirmacao
+  const handleDeleteAll = () => {
+    if (confirm("Tem certeza? Isso apagará TODAS as suas despesas e não pode ser desfeito.")) {
+        deleteAllMutation.mutate()
+    }
   }
 
   const mudarMes = (direcao: number) => {
@@ -63,7 +82,6 @@ export default function Home() {
     setAnoFiltro(novoAno)
   }
 
-  // Loading
   if (!isLoaded || isLoading) return (
     <div className="flex h-screen items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center animate-pulse gap-4">
@@ -80,13 +98,9 @@ export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center p-4 md:p-8 bg-gray-50">
       
-      {/* CONTAINER PRINCIPAL */}
       <div className="w-full max-w-2xl flex flex-col gap-8 mb-8">
         
-        {/* --- CABEÇALHO --- */}
         <div className="flex justify-between items-center bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
-            
-            {/* LOGO */}
             <div className="relative flex items-center">
                 <Image 
                     src="/Econoeasy.png" 
@@ -98,8 +112,16 @@ export default function Home() {
                 />
             </div>
             
-            {/* BOTÕES (Nova + Config) */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+                {/* botao vermelho pra resetar as compras */}
+                <button 
+                    onClick={handleDeleteAll} 
+                    className="p-3 text-red-400 hover:text-white hover:bg-red-500 transition bg-white rounded-2xl border border-gray-200 shadow-sm flex items-center justify-center"
+                    title="Apagar Tudo"
+                >
+                    <Trash2 size={22} />
+                </button>
+
                 <button 
                     onClick={abrirModal} 
                     className="bg-blue-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-blue-700 transition shadow-lg shadow-blue-200 active:scale-95 font-bold tracking-wide"
@@ -119,7 +141,6 @@ export default function Home() {
             </div>
         </div>
 
-        {/* --- BARRA DE DATA --- */}
         <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
             <button onClick={() => mudarMes(-1)} className="p-3 hover:bg-gray-50 rounded-xl text-gray-400 hover:text-blue-600 transition hover:scale-110">
                 ◀
@@ -138,10 +159,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* --- DASHBOARD --- */}
       <Dashboard mes={mesFiltro} ano={anoFiltro} />
 
-      {/* --- LISTA DE COMPRAS --- */}
       <div className="w-full max-w-2xl mt-8 space-y-4 pb-20">
         
         {(compras?.length ?? 0) > 0 && (
