@@ -13,7 +13,6 @@ export default function CreateCompraForm() {
   const queryClient = useQueryClient()
   const { user } = useUser()
 
-  // Estados dos campos
   const [descricao, setDescricao] = useState(''); 
   const [valor, setValor] = useState(''); 
   const [data, setData] = useState(''); 
@@ -37,10 +36,23 @@ export default function CreateCompraForm() {
   }, [compraParaEditar, isOpen])
 
   const limparCampos = () => { 
-    setDescricao(''); setValor(''); setData(''); setCompradorId(''); setCartaoId(''); setParceiroId(''); setParcelas('1') 
+    setDescricao(''); 
+    setValor(''); 
+    
+    // Traz a data atual já no esquema que o input type date aceita (YYYY-MM-DD)
+    const hoje = new Date().toISOString().split('T')[0];
+    setData(hoje);
+    
+    // Puxa do navegador os últimos usados
+    if (typeof window !== 'undefined') {
+        setCompradorId(localStorage.getItem('ultimoComprador') || '');
+        setCartaoId(localStorage.getItem('ultimoCartao') || '');
+    }
+
+    setParceiroId(''); 
+    setParcelas('1') 
   }
 
-  // Ajuste nas URLs: troquei aspas por crases para a variável de ambiente funcionar
   const { data: pessoas } = useQuery<Pessoa[]>({ 
       queryKey: ['pessoas', user?.id], 
       queryFn: async () => (await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/pessoas`, { headers: { "X-Usuario-Id": user?.id } })).data, 
@@ -59,7 +71,6 @@ export default function CreateCompraForm() {
       if (compraParaEditar) {
           return axios.put(`${process.env.NEXT_PUBLIC_API_URL}/compras/${compraParaEditar.id}`, dados, config)
       } else {
-          // Ajustado para crases aqui também
           return axios.post(`${process.env.NEXT_PUBLIC_API_URL}/compras`, dados, config)
       }
     },
@@ -68,20 +79,30 @@ export default function CreateCompraForm() {
       queryClient.invalidateQueries({ queryKey: ['resumoPessoas'] }); 
       queryClient.invalidateQueries({ queryKey: ['resumoCartoes'] })
       fecharModal(); 
-      alert(compraParaEditar ? "Compra atualizada!" : "Compra criada!")
     },
     onError: (error: any) => alert("Erro ao salvar.")
   })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const dataObj = new Date(data)
+
+    // Salva as escolhas pra próxima vez que for adicionar algo
+    if (typeof window !== 'undefined') {
+        localStorage.setItem('ultimoComprador', compradorId);
+        localStorage.setItem('ultimoCartao', cartaoId);
+    }
+
+    // Resolvendo o bugzinho do JS que muda o mês por causa do fuso horário
+    const [anoStr, mesStr] = data.split('-');
+    const mesFatura = parseInt(mesStr, 10);
+    const anoFatura = parseInt(anoStr, 10);
+
     const payload = { 
         descricao, 
         valor: parseFloat(valor.replace(',', '.')), 
         data, 
-        mesFatura: dataObj.getMonth() + 1, 
-        anoFatura: dataObj.getFullYear(), 
+        mesFatura, 
+        anoFatura, 
         cartaoId: Number(cartaoId), 
         compradorId: Number(compradorId), 
         parceiroId: parceiroId ? Number(parceiroId) : null, 
